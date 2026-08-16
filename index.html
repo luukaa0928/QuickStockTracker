@@ -5,62 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>快速查股王</title>
     
-    <!-- 桌面與分頁 Logo 路徑 -->
+    <!-- PWA 關鍵設定 -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#000000">
+
+    <!-- 蘋果 iOS 桌面 Icon 設定 -->
     <link rel="icon" href="./IMG_5347.jpg" type="image/jpeg">
     <link rel="apple-touch-icon" href="./IMG_5347.jpg">
 
     <style>
+        /* 保持原有的 CSS 樣式 */
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { 
-            background: #000000; /* 計算機後方背景改為純黑色 */
-            color: #fff; 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            min-height: 100vh; 
-        }
-        .calc { 
-            width: 100%; 
-            max-width: 360px; 
-            background: #1e1e24; 
-            border-radius: 20px; 
-            padding: 20px; 
-            box-shadow: 0 10px 30px rgba(255,255,255,0.05); 
-        }
-        .logo-container { 
-            text-align: center; 
-            margin-bottom: 12px; 
-        }
-        .app-logo { 
-            width: 64px; 
-            height: 64px; 
-            border-radius: 14px; 
-            object-fit: cover; 
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-        }
-        .screen { 
-            background: #000; 
-            border-radius: 12px; 
-            padding: 15px; 
-            text-align: right; 
-            margin-bottom: 15px; 
-        }
+        body { background: #000000; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .calc { width: 100%; max-width: 360px; background: #1e1e24; border-radius: 20px; padding: 20px; box-shadow: 0 10px 30px rgba(255,255,255,0.05); }
+        .logo-container { text-align: center; margin-bottom: 12px; }
+        .app-logo { width: 64px; height: 64px; border-radius: 14px; object-fit: cover; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .screen { background: #000; border-radius: 12px; padding: 15px; text-align: right; margin-bottom: 15px; }
         .stock-code { color: #888; font-size: 14px; min-height: 20px; }
         .stock-name { color: #aaa; font-size: 15px; margin: 4px 0; }
         .stock-price { font-size: 26px; font-weight: bold; min-height: 35px; }
         .stock-time { color: #666; font-size: 11px; margin-top: 4px; }
         .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-        button { 
-            border: none; 
-            background: #2c2c34; 
-            color: #fff; 
-            font-size: 18px; 
-            font-weight: bold; 
-            border-radius: 10px; 
-            height: 52px; 
-            cursor: pointer; 
-        }
+        button { border: none; background: #2c2c34; color: #fff; font-size: 18px; font-weight: bold; border-radius: 10px; height: 52px; cursor: pointer; }
         button:active { background: #444; }
         .btn-query { background: #007acc; }
         .up { color: #ff5252; }
@@ -70,7 +36,6 @@
 <body>
 
 <div class="calc">
-    <!-- UI 頂部 Logo -->
     <div class="logo-container">
         <img src="./IMG_5347.jpg" alt="快速查股王 Logo" class="app-logo" onerror="this.style.display='none'">
     </div>
@@ -111,36 +76,20 @@
 </div>
 
 <script>
+    // 註冊 Service Worker 觸發 PWA 安裝功能
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js');
+        });
+    }
+
     let inputCode = "";
 
-    function press(val) {
-        inputCode += val;
-        updateCodeDisplay();
-    }
-
-    function clearCode() {
-        inputCode = "";
-        updateCodeDisplay();
-        document.getElementById('nameDisplay').innerText = "---";
-        document.getElementById('priceDisplay').innerText = "---";
-        document.getElementById('timeDisplay').innerText = "";
-        document.getElementById('priceDisplay').className = "stock-price";
-    }
-
-    function backspace() {
-        inputCode = inputCode.slice(0, -1);
-        updateCodeDisplay();
-    }
-
-    function quickSelect(code) {
-        inputCode = code;
-        updateCodeDisplay();
-        queryStock();
-    }
-
-    function updateCodeDisplay() {
-        document.getElementById('codeDisplay').innerText = inputCode ? `代號: ${inputCode}` : "請輸入代號";
-    }
+    function press(val) { inputCode += val; updateCodeDisplay(); }
+    function clearCode() { inputCode = ""; updateCodeDisplay(); document.getElementById('nameDisplay').innerText = "---"; document.getElementById('priceDisplay').innerText = "---"; document.getElementById('timeDisplay').innerText = ""; document.getElementById('priceDisplay').className = "stock-price"; }
+    function backspace() { inputCode = inputCode.slice(0, -1); updateCodeDisplay(); }
+    function quickSelect(code) { inputCode = code; updateCodeDisplay(); queryStock(); }
+    function updateCodeDisplay() { document.getElementById('codeDisplay').innerText = inputCode ? `代號: ${inputCode}` : "請輸入代號"; }
 
     async function queryStock() {
         if (!inputCode) return;
@@ -152,7 +101,6 @@
         try {
             const code = inputCode.trim();
             const timeStamp = Date.now();
-            
             const twseTarget = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${code}.tw|otc_${code}.tw&_=${timeStamp}`;
             const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(twseTarget)}`;
             
@@ -193,19 +141,13 @@
             priceDisp.innerText = `$${price.toFixed(2)} (${sign}${changePct}%)`;
             priceDisp.className = `stock-price ${change > 0 ? 'up' : (change < 0 ? 'down' : '')}`;
             
-            // 判斷是否為交易時間 (週一至週五 09:00 ~ 13:30)
             const now = new Date();
             const day = now.getDay();
             const timeNum = now.getHours() * 100 + now.getMinutes();
             const isTradingHours = (day >= 1 && day <= 5) && (timeNum >= 900 && timeNum <= 1330);
-
             const updateTime = stock.t || now.toLocaleTimeString();
             
-            if (isTradingHours) {
-                timeDisp.innerText = `盤中即時報價 (${updateTime})`;
-            } else {
-                timeDisp.innerText = `盤後報價 (${updateTime})`;
-            }
+            timeDisp.innerText = isTradingHours ? `盤中即時報價 (${updateTime})` : `盤後報價 (${updateTime})`;
 
         } catch (e) {
             priceDisp.innerText = "查詢失敗";
