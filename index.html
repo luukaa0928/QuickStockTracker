@@ -3,18 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>快速查股王</title>
+    <title>快速查股王 - 即時股價計算機</title>
+    
+    <!-- 桌面與分頁 Logo 路徑 -->
+    <link rel="icon" href="./IMG_5347.jpg" type="image/jpeg">
+    <link rel="apple-touch-icon" href="./IMG_5347.jpg">
+
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #121212; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-        .calc { width: 100%; max-width: 360px; background: #1e1e24; border-radius: 20px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .screen { background: #000; border-radius: 12px; padding: 15px; text-align: right; margin-bottom: 15px; }
+        body { 
+            background: #ffffff; 
+            color: #fff; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh; 
+        }
+        .calc { 
+            width: 100%; 
+            max-width: 360px; 
+            background: #1e1e24; 
+            border-radius: 20px; 
+            padding: 20px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15); 
+        }
+        .logo-container { 
+            text-align: center; 
+            margin-bottom: 12px; 
+        }
+        .app-logo { 
+            width: 64px; 
+            height: 64px; 
+            border-radius: 14px; 
+            object-fit: cover; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        .screen { 
+            background: #000; 
+            border-radius: 12px; 
+            padding: 15px; 
+            text-align: right; 
+            margin-bottom: 15px; 
+        }
         .stock-code { color: #888; font-size: 14px; min-height: 20px; }
         .stock-name { color: #aaa; font-size: 15px; margin: 4px 0; }
         .stock-price { font-size: 26px; font-weight: bold; min-height: 35px; }
         .stock-time { color: #666; font-size: 11px; margin-top: 4px; }
         .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-        button { border: none; background: #2c2c34; color: #fff; font-size: 18px; font-weight: bold; border-radius: 10px; height: 52px; cursor: pointer; }
+        button { 
+            border: none; 
+            background: #2c2c34; 
+            color: #fff; 
+            font-size: 18px; 
+            font-weight: bold; 
+            border-radius: 10px; 
+            height: 52px; 
+            cursor: pointer; 
+        }
         button:active { background: #444; }
         .btn-query { background: #007acc; }
         .up { color: #ff5252; }
@@ -24,12 +70,18 @@
 <body>
 
 <div class="calc">
+    <!-- UI 頂部 Logo -->
+    <div class="logo-container">
+        <img src="./IMG_5347.jpg" alt="快速查股王 Logo" class="app-logo" onerror="this.style.display='none'">
+    </div>
+
     <div class="screen">
         <div id="codeDisplay" class="stock-code">請輸入代號</div>
         <div id="nameDisplay" class="stock-name">---</div>
         <div id="priceDisplay" class="stock-price">---</div>
         <div id="timeDisplay" class="stock-time"></div>
     </div>
+    
     <div class="grid">
         <button onclick="clearCode()">C</button>
         <button onclick="backspace()">⌫</button>
@@ -95,16 +147,13 @@
         const priceDisp = document.getElementById('priceDisplay');
         const nameDisp = document.getElementById('nameDisplay');
         const timeDisp = document.getElementById('timeDisplay');
-        priceDisp.innerText = "即時連線中...";
+        priceDisp.innerText = "連線查詢中...";
 
         try {
             const code = inputCode.trim();
             const timeStamp = Date.now();
             
-            // 證交所 TWSE MIS 即時 API (同時送出上市 tse 與上櫃 otc)
             const twseTarget = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${code}.tw|otc_${code}.tw&_=${timeStamp}`;
-            
-            // 使用 CORS 代理轉接
             const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(twseTarget)}`;
             
             const res = await fetch(proxyUrl);
@@ -120,9 +169,8 @@
 
             const stock = data.msgArray[0];
             const name = stock.n || code;
-            const yClose = parseFloat(stock.y || 0); // 昨收價
+            const yClose = parseFloat(stock.y || 0);
             
-            // 取當盤撮合成交價 'z'；盤前若無成交價則降級取賣首價 'a' 或買首價 'b'
             let priceStr = stock.z;
             if (!priceStr || priceStr === "-") {
                 priceStr = stock.a ? stock.a.split('_')[0] : (stock.b ? stock.b.split('_')[0] : "-");
@@ -145,9 +193,19 @@
             priceDisp.innerText = `$${price.toFixed(2)} (${sign}${changePct}%)`;
             priceDisp.className = `stock-price ${change > 0 ? 'up' : (change < 0 ? 'down' : '')}`;
             
-            // 顯示盤中撮合時間
-            const updateTime = stock.t || new Date().toLocaleTimeString();
-            timeDisp.innerText = `盤中即時報價 (${updateTime})`;
+            // 判斷是否為交易時間 (週一至週五 09:00 ~ 13:30)
+            const now = new Date();
+            const day = now.getDay();
+            const timeNum = now.getHours() * 100 + now.getMinutes();
+            const isTradingHours = (day >= 1 && day <= 5) && (timeNum >= 900 && timeNum <= 1330);
+
+            const updateTime = stock.t || now.toLocaleTimeString();
+            
+            if (isTradingHours) {
+                timeDisp.innerText = `盤中即時報價 (${updateTime})`;
+            } else {
+                timeDisp.innerText = `盤後報價 (${updateTime})`;
+            }
 
         } catch (e) {
             priceDisp.innerText = "查詢失敗";
