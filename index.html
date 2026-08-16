@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>股價速查計算機</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #121212; color: #fff; font-family: -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .calc { width: 100%; max-width: 360px; background: #1e1e24; border-radius: 20px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .screen { background: #000; border-radius: 12px; padding: 15px; text-align: right; margin-bottom: 15px; }
+        .stock-code { color: #888; font-size: 14px; min-height: 20px; }
+        .stock-name { color: #aaa; font-size: 16px; margin: 5px 0; }
+        .stock-price { font-size: 28px; font-weight: bold; min-height: 35px; }
+        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+        button { border: none; background: #2c2c34; color: #fff; font-size: 18px; font-weight: bold; border-radius: 10px; height: 55px; cursor: pointer; }
+        button:active { background: #444; }
+        .btn-query { background: #007acc; grid-column: span 1; }
+        .up { color: #ff5252; }
+        .down { color: #4caf50; }
+    </style>
+</head>
+<body>
+
+<div class="calc">
+    <div class="screen">
+        <div id="codeDisplay" class="stock-code">請輸入代號</div>
+        <div id="nameDisplay" class="stock-name">---</div>
+        <div id="priceDisplay" class="stock-price">---</div>
+    </div>
+    <div class="grid">
+        <button onclick="clearCode()">C</button>
+        <button onclick="backspace()">⌫</button>
+        <button onclick="quickSelect('2330')">2330</button>
+        <button onclick="quickSelect('2317')">2317</button>
+        
+        <button onclick="press('7')">7</button>
+        <button onclick="press('8')">8</button>
+        <button onclick="press('9')">9</button>
+        <button onclick="quickSelect('0050')">0050</button>
+        
+        <button onclick="press('4')">4</button>
+        <button onclick="press('5')">5</button>
+        <button onclick="press('6')">6</button>
+        <button onclick="quickSelect('0056')">0056</button>
+        
+        <button onclick="press('1')">1</button>
+        <button onclick="press('2')">2</button>
+        <button onclick="press('3')">3</button>
+        <button onclick="quickSelect('00878')">00878</button>
+        
+        <button onclick="press('0')">0</button>
+        <button onclick="press('00')">00</button>
+        <button onclick="press('.')">.</button>
+        <button class="btn-query" onclick="queryStock()">查詢</button>
+    </div>
+</div>
+
+<script>
+    let inputCode = "";
+
+    function press(val) {
+        inputCode += val;
+        updateCodeDisplay();
+    }
+
+    function clearCode() {
+        inputCode = "";
+        updateCodeDisplay();
+        document.getElementById('nameDisplay').innerText = "---";
+        document.getElementById('priceDisplay').innerText = "---";
+        document.getElementById('priceDisplay').className = "stock-price";
+    }
+
+    function backspace() {
+        inputCode = inputCode.slice(0, -1);
+        updateCodeDisplay();
+    }
+
+    function quickSelect(code) {
+        inputCode = code;
+        updateCodeDisplay();
+        queryStock();
+    }
+
+    function updateCodeDisplay() {
+        document.getElementById('codeDisplay').innerText = inputCode ? `代號: ${inputCode}` : "請輸入代號";
+    }
+
+    async function queryStock() {
+        if (!inputCode) return;
+        const priceDisp = document.getElementById('priceDisplay');
+        const nameDisp = document.getElementById('nameDisplay');
+        priceDisp.innerText = "查詢中...";
+
+        try {
+            // 使用公共代理伺服器解決跨網域 (CORS) 限制
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${inputCode}.TW`;
+            const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+            const wrapper = await res.json();
+            const data = JSON.parse(wrapper.contents);
+            
+            const result = data.chart.result[0];
+            const meta = result.meta;
+            const price = meta.regularMarketPrice;
+            const prevClose = meta.chartPreviousClose;
+            const change = price - prevClose;
+            const changePct = ((change / prevClose) * 100).toFixed(2);
+            const sign = change > 0 ? "+" : "";
+
+            nameDisp.innerText = meta.symbol;
+            priceDisp.innerText = `$${price.toFixed(2)} (${sign}${changePct}%)`;
+            priceDisp.className = `stock-price ${change > 0 ? 'up' : (change < 0 ? 'down' : '')}`;
+        } catch (e) {
+            priceDisp.innerText = "查詢失敗";
+            priceDisp.className = "stock-price";
+        }
+    }
+</script>
+</body>
+</html>
