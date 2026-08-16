@@ -3,17 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>股價速查計算機</title>
+    <title>盤中即時股價計算機</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #121212; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
         .calc { width: 100%; max-width: 360px; background: #1e1e24; border-radius: 20px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         .screen { background: #000; border-radius: 12px; padding: 15px; text-align: right; margin-bottom: 15px; }
         .stock-code { color: #888; font-size: 14px; min-height: 20px; }
-        .stock-name { color: #aaa; font-size: 15px; margin: 5px 0; }
+        .stock-name { color: #aaa; font-size: 15px; margin: 4px 0; }
         .stock-price { font-size: 26px; font-weight: bold; min-height: 35px; }
+        .stock-time { color: #666; font-size: 11px; margin-top: 4px; }
         .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-        button { border: none; background: #2c2c34; color: #fff; font-size: 18px; font-weight: bold; border-radius: 10px; height: 55px; cursor: pointer; }
+        button { border: none; background: #2c2c34; color: #fff; font-size: 18px; font-weight: bold; border-radius: 10px; height: 52px; cursor: pointer; }
         button:active { background: #444; }
         .btn-query { background: #007acc; }
         .up { color: #ff5252; }
@@ -27,6 +28,7 @@
         <div id="codeDisplay" class="stock-code">請輸入代號</div>
         <div id="nameDisplay" class="stock-name">---</div>
         <div id="priceDisplay" class="stock-price">---</div>
+        <div id="timeDisplay" class="stock-time"></div>
     </div>
     <div class="grid">
         <button onclick="clearCode()">C</button>
@@ -69,6 +71,7 @@
         updateCodeDisplay();
         document.getElementById('nameDisplay').innerText = "---";
         document.getElementById('priceDisplay').innerText = "---";
+        document.getElementById('timeDisplay').innerText = "";
         document.getElementById('priceDisplay').className = "stock-price";
     }
 
@@ -91,43 +94,65 @@
         if (!inputCode) return;
         const priceDisp = document.getElementById('priceDisplay');
         const nameDisp = document.getElementById('nameDisplay');
-        priceDisp.innerText = "查詢中...";
+        const timeDisp = document.getElementById('timeDisplay');
+        priceDisp.innerText = "即時連線中...";
 
         try {
-            // 抓取近 7 天歷史區間以確保涵蓋最新交易日
-            const today = new Date();
-            const past = new Date(today.setDate(today.getDate() - 7));
-            const startDate = past.toISOString().split('T')[0];
+            const code = inputCode.trim();
+            const timeStamp = Date.now();
             
-            // FinMind API 原生允許瀏覽器 CORS 連線
-            const url = `https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${inputCode}&start_date=${startDate}`;
+            // 證交所 TWSE MIS 即時 API (同時送出上市 tse 與上櫃 otc)
+            const twseTarget = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${code}.tw|otc_${code}.tw&_=${timeStamp}`;
             
-            const res = await fetch(url);
-            const json = await res.json();
+            // 使用 CORS 代理轉接
+            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(twseTarget)}`;
             
-            if (!json.data || json.data.length === 0) {
+            const res = await fetch(proxyUrl);
+            const data = await res.json();
+            
+            if (!data.msgArray || data.msgArray.length === 0) {
                 nameDisp.innerText = "查無此股票代號";
                 priceDisp.innerText = "無資料";
                 priceDisp.className = "stock-price";
+                timeDisp.innerText = "";
                 return;
             }
 
-            // 取得最新一筆交易日數據
-            const latest = json.data[json.data.length - 1];
-            const price = latest.close;
-            const spread = latest.spread; // 漲跌金額
+            const stock = data.msgArray[0];
+            const name = stock.n || code;
+            const yClose = parseFloat(stock.y || 0); // 昨收價
             
-            // 計算前一日收盤價與漲跌幅
-            const prevClose = price - spread;
-            const changePct = prevClose > 0 ? ((spread / prevClose) * 100).toFixed(2) : "0.00";
-            const sign = spread > 0 ? "+" : "";
+            // 取當盤撮合成交價 'z'；盤前若無成交價則降級取賣首價 'a' 或買首價 'b'
+            let priceStr = stock.z;
+            if (!priceStr || priceStr === "-") {
+                priceStr = stock.a ? stock.a.split('_')[0] : (stock.b ? stock.b.split('_')[0] : "-");
+            }
 
-            nameDisp.innerText = `台股 ${latest.stock_id} (${latest.date})`;
-            priceDisp.innerText = `$${price} (${sign}${changePct}%)`;
-            priceDisp.className = `stock-price ${spread > 0 ? 'up' : (spread < 0 ? 'down' : '')}`;
+            if (!priceStr || priceStr === "-") {
+                nameDisp.innerText = `${name} (${code})`;
+                priceDisp.innerText = "未開盤";
+                priceDisp.className = "stock-price";
+                timeDisp.innerText = "";
+                return;
+            }
+
+            const price = parseFloat(priceStr);
+            const change = price - yClose;
+            const changePct = yClose > 0 ? ((change / yClose) * 100).toFixed(2) : "0.00";
+            const sign = change > 0 ? "+" : "";
+
+            nameDisp.innerText = `${name} (${code})`;
+            priceDisp.innerText = `$${price.toFixed(2)} (${sign}${changePct}%)`;
+            priceDisp.className = `stock-price ${change > 0 ? 'up' : (change < 0 ? 'down' : '')}`;
+            
+            // 顯示盤中撮合時間
+            const updateTime = stock.t || new Date().toLocaleTimeString();
+            timeDisp.innerText = `盤中即時報價 (${updateTime})`;
+
         } catch (e) {
-            priceDisp.innerText = "連線失敗";
+            priceDisp.innerText = "查詢失敗";
             priceDisp.className = "stock-price";
+            timeDisp.innerText = "";
         }
     }
 </script>
