@@ -10,9 +10,9 @@
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#000000">
 
-    <!-- 蘋果 iOS 桌面 Icon 設定 -->
-    <link rel="icon" href="./IMG_5383.JPG" type="image/jpeg">
-    <link rel="apple-touch-icon" href="./IMG_5383.JPG">
+    <!-- Icon 設定 -->
+    <link rel="icon" href="./icon-192.png" type="image/png">
+    <link rel="apple-touch-icon" href="./icon-192.png">
 
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -58,7 +58,7 @@
             padding: 15px; 
             text-align: right; 
             margin-bottom: 15px;
-            height: 130px; /* 固定顯示框總高度 */
+            height: 130px;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -69,12 +69,25 @@
         .stock-time { color: #666; font-size: 11px; height: 16px; line-height: 16px; margin-top: 2px; }
         
         .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-        button { border: none; background: #2c2c34; color: #fff; font-size: 18px; font-weight: bold; border-radius: 10px; height: 52px; cursor: pointer; }
+        
+        /* ⚡ 核心優化：消除點擊延遲與提昇觸控效能 */
+        button { 
+            border: none; 
+            background: #2c2c34; 
+            color: #fff; 
+            font-size: 18px; 
+            font-weight: bold; 
+            border-radius: 10px; 
+            height: 52px; 
+            cursor: pointer; 
+            touch-action: manipulation; /* 告訴瀏覽器此按鈕無雙擊縮放，移除 300ms 延遲 */
+            will-change: transform;       /* 預先啟用硬體加速 */
+        }
         button:active { background: #444; }
         .btn-query { background: #007acc; }
         .up { color: #ff5252; }
         .down { color: #4caf50; }
-        .text-placeholder { color: transparent !important; } /* 無資料時佔位維持高度 */
+        .text-placeholder { color: transparent !important; }
     </style>
 </head>
 <body>
@@ -127,17 +140,14 @@
         });
     }
 
-    // JS 徹底禁止頁面滑動與雙擊/縮放手勢
-    document.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
-    document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
-    document.addEventListener('touchstart', function (e) { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+    // ⚡ 精準防手勢縮放（只針對多指與手勢事件，不干擾單指點擊）
+    document.addEventListener('touchmove', function (e) { 
+        if (e.touches.length > 1) e.preventDefault(); 
+    }, { passive: false });
     
-    let lastTouchEnd = 0;
-    document.addEventListener('touchend', function (e) {
-        const now = (new Date()).getTime();
-        if (now - lastTouchEnd <= 300) e.preventDefault();
-        lastTouchEnd = now;
-    }, false);
+    document.addEventListener('gesturestart', function (e) { 
+        e.preventDefault(); 
+    });
 
     let inputCode = "";
     let isNewInput = false;
