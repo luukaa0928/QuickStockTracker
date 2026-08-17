@@ -1,6 +1,6 @@
 {
   "name": "快速查股王",
-  "short_name": "查股王",
+  "short_name": "快速查股王",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#000000",
