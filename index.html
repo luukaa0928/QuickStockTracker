@@ -21,9 +21,9 @@
         html, body {
             width: 100%;
             height: 100%;
-            overflow: hidden; /* 隱藏滾動條 */
-            position: fixed;   /* 鎖定頁面位置，防 iOS 彈簧效果 */
-            touch-action: none; /* 關閉所有預設觸控滑動行為 */
+            overflow: hidden;
+            position: fixed;
+            touch-action: none;
         }
 
         body, button {
@@ -50,38 +50,52 @@
         }
         .logo-container { text-align: center; margin-bottom: 12px; }
         .app-logo { width: 64px; height: 64px; border-radius: 14px; object-fit: cover; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
-        .screen { background: #000; border-radius: 12px; padding: 15px; text-align: right; margin-bottom: 15px; }
-        .stock-code { color: #888; font-size: 14px; min-height: 20px; }
-        .stock-name { color: #aaa; font-size: 15px; margin: 4px 0; }
-        .stock-price { font-size: 26px; font-weight: bold; min-height: 35px; }
-        .stock-time { color: #666; font-size: 11px; margin-top: 4px; }
+        
+        /* 固定查詢框高度與內部行高，防止大小變動 */
+        .screen { 
+            background: #000; 
+            border-radius: 12px; 
+            padding: 15px; 
+            text-align: right; 
+            margin-bottom: 15px;
+            height: 130px; /* 固定顯示框總高度 */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .stock-code { color: #888; font-size: 14px; height: 20px; line-height: 20px; }
+        .stock-name { color: #aaa; font-size: 15px; height: 22px; line-height: 22px; margin: 2px 0; overflow: hidden; white-space: nowrap; }
+        .stock-price { font-size: 26px; font-weight: bold; height: 36px; line-height: 36px; }
+        .stock-time { color: #666; font-size: 11px; height: 16px; line-height: 16px; margin-top: 2px; }
+        
         .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
         button { border: none; background: #2c2c34; color: #fff; font-size: 18px; font-weight: bold; border-radius: 10px; height: 52px; cursor: pointer; }
         button:active { background: #444; }
         .btn-query { background: #007acc; }
         .up { color: #ff5252; }
         .down { color: #4caf50; }
+        .text-placeholder { color: transparent !important; } /* 無資料時佔位維持高度 */
     </style>
 </head>
 <body>
 
 <div class="calc">
     <div class="logo-container">
-        <img src="./IMG_5383.JPG" alt="快速查股王 Logo" class="app-logo" onerror="this.style.display='none'">
+        <img src="" alt="快速查股王 Logo" class="app-logo" onerror="this.style.display='none'">
     </div>
 
     <div class="screen">
         <div id="codeDisplay" class="stock-code">請輸入代號</div>
-        <div id="nameDisplay" class="stock-name">---</div>
-        <div id="priceDisplay" class="stock-price">---</div>
-        <div id="timeDisplay" class="stock-time"></div>
+        <div id="nameDisplay" class="stock-name text-placeholder">-</div>
+        <div id="priceDisplay" class="stock-price text-placeholder">-</div>
+        <div id="timeDisplay" class="stock-time text-placeholder">-</div>
     </div>
     
     <div class="grid">
         <button onclick="clearCode()">C</button>
         <button onclick="backspace()">⌫</button>
+        <button onclick="quickSelect('t00')">大盤</button>
         <button onclick="quickSelect('2330')">2330</button>
-        <button onclick="quickSelect('2317')">2317</button>
         
         <button onclick="press('7')">7</button>
         <button onclick="press('8')">8</button>
@@ -126,10 +140,9 @@
     }, false);
 
     let inputCode = "";
-    let isNewInput = false; // 紀錄是否剛完成查詢
+    let isNewInput = false;
 
     function press(val) {
-        // 如果剛查詢完，輸入新數字時自動重置上一次的代碼
         if (isNewInput) {
             inputCode = "";
             isNewInput = false;
@@ -142,10 +155,19 @@
         inputCode = ""; 
         isNewInput = false;
         updateCodeDisplay(); 
-        document.getElementById('nameDisplay').innerText = "---"; 
-        document.getElementById('priceDisplay').innerText = "---"; 
-        document.getElementById('timeDisplay').innerText = ""; 
-        document.getElementById('priceDisplay').className = "stock-price"; 
+        
+        const nameDisp = document.getElementById('nameDisplay');
+        const priceDisp = document.getElementById('priceDisplay');
+        const timeDisp = document.getElementById('timeDisplay');
+        
+        nameDisp.innerText = "-";
+        nameDisp.className = "stock-name text-placeholder";
+        
+        priceDisp.innerText = "-";
+        priceDisp.className = "stock-price text-placeholder";
+        
+        timeDisp.innerText = "-";
+        timeDisp.className = "stock-time text-placeholder";
     }
 
     function backspace() { 
@@ -165,19 +187,29 @@
     }
 
     function updateCodeDisplay() { 
-        document.getElementById('codeDisplay').innerText = inputCode ? `代號: ${inputCode}` : "請輸入代號"; 
+        const codeDisp = document.getElementById('codeDisplay');
+        if (inputCode === 't00') {
+            codeDisp.innerText = "代號: 大盤(t00)";
+        } else {
+            codeDisp.innerText = inputCode ? `代號: ${inputCode}` : "請輸入代號"; 
+        }
     }
 
     async function queryStock() {
         if (!inputCode) return;
         
-        // 標記已經進行查詢，下一次按按鈕時會重新開始
         isNewInput = true;
 
         const priceDisp = document.getElementById('priceDisplay');
         const nameDisp = document.getElementById('nameDisplay');
         const timeDisp = document.getElementById('timeDisplay');
+        
+        nameDisp.className = "stock-name text-placeholder";
+        nameDisp.innerText = "-";
+        priceDisp.className = "stock-price";
         priceDisp.innerText = "連線查詢中...";
+        timeDisp.className = "stock-time text-placeholder";
+        timeDisp.innerText = "-";
 
         try {
             const code = inputCode.trim();
@@ -190,14 +222,16 @@
             
             if (!data.msgArray || data.msgArray.length === 0) {
                 nameDisp.innerText = "查無此股票代號";
+                nameDisp.className = "stock-name";
                 priceDisp.innerText = "無資料";
                 priceDisp.className = "stock-price";
-                timeDisp.innerText = "";
+                timeDisp.innerText = "-";
+                timeDisp.className = "stock-time text-placeholder";
                 return;
             }
 
             const stock = data.msgArray[0];
-            const name = stock.n || code;
+            const name = code === 't00' ? '加權指數' : (stock.n || code);
             const yClose = parseFloat(stock.y || 0);
             
             let priceStr = stock.z;
@@ -207,9 +241,11 @@
 
             if (!priceStr || priceStr === "-") {
                 nameDisp.innerText = `${name} (${code})`;
+                nameDisp.className = "stock-name";
                 priceDisp.innerText = "未開盤";
                 priceDisp.className = "stock-price";
-                timeDisp.innerText = "";
+                timeDisp.innerText = "-";
+                timeDisp.className = "stock-time text-placeholder";
                 return;
             }
 
@@ -219,6 +255,8 @@
             const sign = change > 0 ? "+" : "";
 
             nameDisp.innerText = `${name} (${code})`;
+            nameDisp.className = "stock-name";
+            
             priceDisp.innerText = `$${price.toFixed(2)} (${sign}${changePct}%)`;
             priceDisp.className = `stock-price ${change > 0 ? 'up' : (change < 0 ? 'down' : '')}`;
             
@@ -229,11 +267,15 @@
             const updateTime = stock.t || now.toLocaleTimeString();
             
             timeDisp.innerText = isTradingHours ? `盤中即時報價 (${updateTime})` : `盤後報價 (${updateTime})`;
+            timeDisp.className = "stock-time";
 
         } catch (e) {
+            nameDisp.innerText = "-";
+            nameDisp.className = "stock-name text-placeholder";
             priceDisp.innerText = "查詢失敗";
             priceDisp.className = "stock-price";
-            timeDisp.innerText = "";
+            timeDisp.innerText = "-";
+            timeDisp.className = "stock-time text-placeholder";
         }
     }
 </script>
