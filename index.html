@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <!-- 1. Viewport 限制使用者手勢縮放 -->
+    <!-- Viewport 限制使用者手勢縮放 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
     <title>快速查股王</title>
     
@@ -17,9 +17,16 @@
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         
-        /* 2. CSS 禁止縮放與點擊高亮 */
+        /* 禁止頁面滾動與滑動手勢 */
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden; /* 隱藏滾動條 */
+            position: fixed;   /* 鎖定頁面位置，防 iOS 彈簧效果 */
+            touch-action: none; /* 關閉所有預設觸控滑動行為 */
+        }
+
         body, button {
-            touch-action: manipulation;
             -webkit-user-select: none;
             user-select: none;
             -webkit-tap-highlight-color: transparent;
@@ -32,7 +39,6 @@
             display: flex; 
             justify-content: center; 
             align-items: center; 
-            min-height: 100vh; 
         }
         .calc { 
             width: 100%; 
@@ -60,9 +66,8 @@
 <body>
 
 <div class="calc">
-    <!-- 補上 Logo 圖片路徑 -->
     <div class="logo-container">
-        <img src="" alt="快速查股王 Logo" class="app-logo" onerror="this.style.display='none'">
+        <img src="./IMG_5383.JPG" alt="快速查股王 Logo" class="app-logo" onerror="this.style.display='none'">
     </div>
 
     <div class="screen">
@@ -108,7 +113,8 @@
         });
     }
 
-    // 3. JS 攔截 iOS 縮放與雙擊手勢
+    // JS 徹底禁止頁面滑動與雙擊/縮放手勢
+    document.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
     document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
     document.addEventListener('touchstart', function (e) { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
     
@@ -120,15 +126,54 @@
     }, false);
 
     let inputCode = "";
+    let isNewInput = false; // 紀錄是否剛完成查詢
 
-    function press(val) { inputCode += val; updateCodeDisplay(); }
-    function clearCode() { inputCode = ""; updateCodeDisplay(); document.getElementById('nameDisplay').innerText = "---"; document.getElementById('priceDisplay').innerText = "---"; document.getElementById('timeDisplay').innerText = ""; document.getElementById('priceDisplay').className = "stock-price"; }
-    function backspace() { inputCode = inputCode.slice(0, -1); updateCodeDisplay(); }
-    function quickSelect(code) { inputCode = code; updateCodeDisplay(); queryStock(); }
-    function updateCodeDisplay() { document.getElementById('codeDisplay').innerText = inputCode ? `代號: ${inputCode}` : "請輸入代號"; }
+    function press(val) {
+        // 如果剛查詢完，輸入新數字時自動重置上一次的代碼
+        if (isNewInput) {
+            inputCode = "";
+            isNewInput = false;
+        }
+        inputCode += val; 
+        updateCodeDisplay(); 
+    }
+
+    function clearCode() { 
+        inputCode = ""; 
+        isNewInput = false;
+        updateCodeDisplay(); 
+        document.getElementById('nameDisplay').innerText = "---"; 
+        document.getElementById('priceDisplay').innerText = "---"; 
+        document.getElementById('timeDisplay').innerText = ""; 
+        document.getElementById('priceDisplay').className = "stock-price"; 
+    }
+
+    function backspace() { 
+        if (isNewInput) {
+            inputCode = "";
+            isNewInput = false;
+        } else {
+            inputCode = inputCode.slice(0, -1); 
+        }
+        updateCodeDisplay(); 
+    }
+
+    function quickSelect(code) { 
+        inputCode = code; 
+        updateCodeDisplay(); 
+        queryStock(); 
+    }
+
+    function updateCodeDisplay() { 
+        document.getElementById('codeDisplay').innerText = inputCode ? `代號: ${inputCode}` : "請輸入代號"; 
+    }
 
     async function queryStock() {
         if (!inputCode) return;
+        
+        // 標記已經進行查詢，下一次按按鈕時會重新開始
+        isNewInput = true;
+
         const priceDisp = document.getElementById('priceDisplay');
         const nameDisp = document.getElementById('nameDisplay');
         const timeDisp = document.getElementById('timeDisplay');
