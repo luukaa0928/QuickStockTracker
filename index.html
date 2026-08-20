@@ -1,15 +1,14 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta name="theme-color" content="#000000">
     <meta charset="UTF-8">
+    <meta name="theme-color" content="#000000">
     <!-- Viewport 限制使用者手勢縮放 -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>快速查股王</title>
     
     <!-- PWA 關鍵設定 -->
     <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#000000">
 
     <!-- Icon 設定 -->
     <link rel="icon" href="./icon-192.png" type="image/png">
@@ -40,6 +39,7 @@
             display: flex; 
             justify-content: center; 
             align-items: center; 
+            padding-bottom: env(safe-area-inset-bottom);
         }
         .calc { 
             width: 100%; 
@@ -95,7 +95,7 @@
 
 <div class="calc">
     <div class="logo-container">
-        <img src="" alt="快速查股王 Logo" class="app-logo" onerror="this.style.display='none'">
+        <img src="./icon-192.png" alt="快速查股王 Logo" class="app-logo" onerror="this.style.display='none'">
     </div>
 
     <div class="screen">
@@ -134,121 +134,6 @@
 </div>
 
 <script>
-    <script>
-// 1. 查詢上市股票 (TWSE)
-async function fetchTWSEStock(stockNo) {
-    try {
-        // 使用證交所即時 API
-        const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${stockNo}.tw&json=1&delay=0&_=${Date.now()}`;
-        const res = await fetch(url);
-        const data = await res.json();
-
-        if (data.msgArray && data.msgArray.length > 0) {
-            const info = data.msgArray[0];
-            // 檢查是否有成交價 (z) 或 當日最高價 (h)
-            if (info.z || info.h || info.y) {
-                return {
-                    success: true,
-                    market: '上市',
-                    code: info.c,
-                    name: info.n,
-                    price: info.z !== '-' ? info.z : info.y, // 若盤中未成交則顯示昨收
-                    open: info.o,
-                    high: info.h,
-                    low: info.l,
-                    yesterday: info.y
-                };
-            }
-        }
-        return null;
-    } catch (e) {
-        console.warn('TWSE 查詢失敗:', e);
-        return null;
-    }
-}
-
-// 2. 查詢上櫃股票 (TPEx)
-async function fetchTPExStock(stockNo) {
-    try {
-        // 先嘗試使用即時 API (otc)
-        const misUrl = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=otc_${stockNo}.two&json=1&delay=0&_=${Date.now()}`;
-        const misRes = await fetch(misUrl);
-        const misData = await misRes.json();
-
-        if (misData.msgArray && misData.msgArray.length > 0) {
-            const info = misData.msgArray[0];
-            if (info.z || info.h || info.y) {
-                return {
-                    success: true,
-                    market: '上櫃',
-                    code: info.c,
-                    name: info.n,
-                    price: info.z !== '-' ? info.z : info.y,
-                    open: info.o,
-                    high: info.h,
-                    low: info.l,
-                    yesterday: info.y
-                };
-            }
-        }
-
-        // 備援：若即時 API 無回應，查詢櫃買中心盤後 JSON (使用 CORS 代理)
-        const tpexUrl = `https://corsproxy.io/?${encodeURIComponent('https://www.tpex.org.tw/web/stock/aftertrading/daily_close_quotes/stk_quote_result.php?l=zh-tw')}`;
-        const tpexRes = await fetch(tpexUrl);
-        const tpexData = await tpexRes.json();
-
-        if (tpexData && tpexData.aaData) {
-            const item = tpexData.aaData.find(row => row[0].trim() === stockNo.trim());
-            if (item) {
-                return {
-                    success: true,
-                    market: '上櫃',
-                    code: item[0].trim(),
-                    name: item[1].trim(),
-                    price: item[2],
-                    change: item[3],
-                    open: item[4],
-                    high: item[5],
-                    low: item[6]
-                };
-            }
-        }
-        return null;
-    } catch (e) {
-        console.warn('TPEx 查詢失敗:', e);
-        return null;
-    }
-}
-
-// 3. 核心查詢入口 (按鈕點擊事件)
-async function executeSearch() {
-    const inputField = document.getElementById('stockInput'); // 請確認你的 Input 元素 ID
-    const stockNo = inputField ? inputField.value.trim() : '';
-
-    if (!stockNo) {
-        alert('請輸入股票代碼！');
-        return;
-    }
-
-    // A. 優先查詢上市 (TWSE)
-    let result = await fetchTWSEStock(stockNo);
-
-    // B. 若上市查無資料，自動切換查詢上櫃 (TPEx)
-    if (!result) {
-        console.log('上市查無資料，自動切換查詢上櫃 (TPEx)...');
-        result = await fetchTPExStock(stockNo);
-    }
-
-    // C. 顯示查詢結果
-    if (result && result.success) {
-        console.log('查詢成功:', result);
-        renderDataToUI(result); // 請將此替換為你原本渲染畫面的 DOM 函式
-    } else {
-        alert(`代碼 [${stockNo}] 在上市與上櫃市場皆查無資料，請確認輸入是否正確。`);
-    }
-}
-</script>
-
     // ⚡ 精準防手勢縮放（只針對多指與手勢事件，不干擾單指點擊）
     document.addEventListener('touchmove', function (e) { 
         if (e.touches.length > 1) e.preventDefault(); 
@@ -314,6 +199,28 @@ async function executeSearch() {
         }
     }
 
+    // 櫃買中心 (TPEx) 盤後數據備援 API
+    async function fetchTPExFallback(stockNo) {
+        try {
+            const tpexUrl = `https://corsproxy.io/?${encodeURIComponent('https://www.tpex.org.tw/web/stock/aftertrading/daily_close_quotes/stk_quote_result.php?l=zh-tw')}`;
+            const res = await fetch(tpexUrl);
+            const data = await res.json();
+            if (data && data.aaData) {
+                const item = data.aaData.find(row => row[0].trim() === stockNo.trim());
+                if (item) {
+                    return {
+                        name: item[1].trim(),
+                        price: parseFloat(item[2].replace(/,/g, ''))
+                    };
+                }
+            }
+        } catch(e) {
+            console.warn('TPEx Fallback 失敗:', e);
+        }
+        return null;
+    }
+
+    // 主查詢邏輯 (整合上市/上櫃與盤後備援)
     async function queryStock() {
         if (!inputCode) return;
         
@@ -330,65 +237,107 @@ async function executeSearch() {
         timeDisp.className = "stock-time text-placeholder";
         timeDisp.innerText = "-";
 
+        const code = inputCode.trim();
+
         try {
-            const code = inputCode.trim();
             const timeStamp = Date.now();
-            const twseTarget = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${code}.tw|otc_${code}.tw&_=${timeStamp}`;
+            // 同時查詢 上市 (tse) 與 上櫃 (otc)
+            const twseTarget = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${code}.tw|otc_${code}.two|otc_${code}.tw&_=${timeStamp}`;
             const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(twseTarget)}`;
             
             const res = await fetch(proxyUrl);
             const data = await res.json();
             
-            if (!data.msgArray || data.msgArray.length === 0) {
-                nameDisp.innerText = "查無此股票代號";
-                nameDisp.className = "stock-name";
-                priceDisp.innerText = "無資料";
-                priceDisp.className = "stock-price";
-                timeDisp.innerText = "-";
-                timeDisp.className = "stock-time text-placeholder";
-                return;
+            let stock = null;
+            if (data.msgArray && data.msgArray.length > 0) {
+                stock = data.msgArray.find(s => s.z || s.a || s.b || s.y) || data.msgArray[0];
             }
 
-            const stock = data.msgArray[0];
-            const name = code === 't00' ? '加權指數' : (stock.n || code);
-            const yClose = parseFloat(stock.y || 0);
-            
-            let priceStr = stock.z;
-            if (!priceStr || priceStr === "-") {
-                priceStr = stock.a ? stock.a.split('_')[0] : (stock.b ? stock.b.split('_')[0] : "-");
-            }
+            if (stock && (stock.n || stock.z || stock.y)) {
+                const name = code === 't00' ? '加權指數' : (stock.n || code);
+                const yClose = parseFloat(stock.y || 0);
+                
+                let priceStr = stock.z;
+                if (!priceStr || priceStr === "-") {
+                    priceStr = stock.a ? stock.a.split('_')[0] : (stock.b ? stock.b.split('_')[0] : "-");
+                }
 
-            if (!priceStr || priceStr === "-") {
+                // 若即時 API 顯示未開盤，嘗試切換至櫃買中心備援盤後數據
+                if (!priceStr || priceStr === "-") {
+                    const fallback = await fetchTPExFallback(code);
+                    if (fallback) {
+                        nameDisp.innerText = `${fallback.name} (${code})`;
+                        nameDisp.className = "stock-name";
+                        priceDisp.innerText = `$${fallback.price.toFixed(2)}`;
+                        priceDisp.className = "stock-price";
+                        timeDisp.innerText = "櫃買盤後備援數據";
+                        timeDisp.className = "stock-time";
+                        return;
+                    }
+
+                    nameDisp.innerText = `${name} (${code})`;
+                    nameDisp.className = "stock-name";
+                    priceDisp.innerText = "未開盤";
+                    priceDisp.className = "stock-price";
+                    timeDisp.innerText = "-";
+                    timeDisp.className = "stock-time text-placeholder";
+                    return;
+                }
+
+                const price = parseFloat(priceStr);
+                const change = price - yClose;
+                const changePct = yClose > 0 ? ((change / yClose) * 100).toFixed(2) : "0.00";
+                const sign = change > 0 ? "+" : "";
+
                 nameDisp.innerText = `${name} (${code})`;
                 nameDisp.className = "stock-name";
-                priceDisp.innerText = "未開盤";
-                priceDisp.className = "stock-price";
-                timeDisp.innerText = "-";
-                timeDisp.className = "stock-time text-placeholder";
+                
+                priceDisp.innerText = `$${price.toFixed(2)} (${sign}${changePct}%)`;
+                priceDisp.className = `stock-price ${change > 0 ? 'up' : (change < 0 ? 'down' : '')}`;
+                
+                const now = new Date();
+                const day = now.getDay();
+                const timeNum = now.getHours() * 100 + now.getMinutes();
+                const isTradingHours = (day >= 1 && day <= 5) && (timeNum >= 900 && timeNum <= 1330);
+                const updateTime = stock.t || now.toLocaleTimeString();
+                
+                timeDisp.innerText = isTradingHours ? `盤中即時報價 (${updateTime})` : `盤後報價 (${updateTime})`;
+                timeDisp.className = "stock-time";
                 return;
             }
 
-            const price = parseFloat(priceStr);
-            const change = price - yClose;
-            const changePct = yClose > 0 ? ((change / yClose) * 100).toFixed(2) : "0.00";
-            const sign = change > 0 ? "+" : "";
+            // 若 MIS API 無資料，執行最後備援
+            const fallback = await fetchTPExFallback(code);
+            if (fallback) {
+                nameDisp.innerText = `${fallback.name} (${code})`;
+                nameDisp.className = "stock-name";
+                priceDisp.innerText = `$${fallback.price.toFixed(2)}`;
+                priceDisp.className = "stock-price";
+                timeDisp.innerText = "櫃買盤後數據";
+                timeDisp.className = "stock-time";
+                return;
+            }
 
-            nameDisp.innerText = `${name} (${code})`;
+            nameDisp.innerText = "查無此股票代號";
             nameDisp.className = "stock-name";
-            
-            priceDisp.innerText = `$${price.toFixed(2)} (${sign}${changePct}%)`;
-            priceDisp.className = `stock-price ${change > 0 ? 'up' : (change < 0 ? 'down' : '')}`;
-            
-            const now = new Date();
-            const day = now.getDay();
-            const timeNum = now.getHours() * 100 + now.getMinutes();
-            const isTradingHours = (day >= 1 && day <= 5) && (timeNum >= 900 && timeNum <= 1330);
-            const updateTime = stock.t || now.toLocaleTimeString();
-            
-            timeDisp.innerText = isTradingHours ? `盤中即時報價 (${updateTime})` : `盤後報價 (${updateTime})`;
-            timeDisp.className = "stock-time";
+            priceDisp.innerText = "無資料";
+            priceDisp.className = "stock-price";
+            timeDisp.innerText = "-";
+            timeDisp.className = "stock-time text-placeholder";
 
         } catch (e) {
+            console.error(e);
+            const fallback = await fetchTPExFallback(code);
+            if (fallback) {
+                nameDisp.innerText = `${fallback.name} (${code})`;
+                nameDisp.className = "stock-name";
+                priceDisp.innerText = `$${fallback.price.toFixed(2)}`;
+                priceDisp.className = "stock-price";
+                timeDisp.innerText = "櫃買盤後數據";
+                timeDisp.className = "stock-time";
+                return;
+            }
+
             nameDisp.innerText = "-";
             nameDisp.className = "stock-name text-placeholder";
             priceDisp.innerText = "查詢失敗";
@@ -396,6 +345,15 @@ async function executeSearch() {
             timeDisp.innerText = "-";
             timeDisp.className = "stock-time text-placeholder";
         }
+    }
+
+    // 註冊 Service Worker
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => console.log('SW 註冊成功'))
+                .catch(err => console.log('SW 註冊失敗', err));
+        });
     }
 </script>
 </body>
