@@ -134,12 +134,120 @@
 </div>
 
 <script>
-    // 註冊 Service Worker
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./sw.js');
-        });
+    <script>
+// 1. 查詢上市股票 (TWSE)
+async function fetchTWSEStock(stockNo) {
+    try {
+        // 使用證交所即時 API
+        const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${stockNo}.tw&json=1&delay=0&_=${Date.now()}`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (data.msgArray && data.msgArray.length > 0) {
+            const info = data.msgArray[0];
+            // 檢查是否有成交價 (z) 或 當日最高價 (h)
+            if (info.z || info.h || info.y) {
+                return {
+                    success: true,
+                    market: '上市',
+                    code: info.c,
+                    name: info.n,
+                    price: info.z !== '-' ? info.z : info.y, // 若盤中未成交則顯示昨收
+                    open: info.o,
+                    high: info.h,
+                    low: info.l,
+                    yesterday: info.y
+                };
+            }
+        }
+        return null;
+    } catch (e) {
+        console.warn('TWSE 查詢失敗:', e);
+        return null;
     }
+}
+
+// 2. 查詢上櫃股票 (TPEx)
+async function fetchTPExStock(stockNo) {
+    try {
+        // 先嘗試使用即時 API (otc)
+        const misUrl = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=otc_${stockNo}.two&json=1&delay=0&_=${Date.now()}`;
+        const misRes = await fetch(misUrl);
+        const misData = await misRes.json();
+
+        if (misData.msgArray && misData.msgArray.length > 0) {
+            const info = misData.msgArray[0];
+            if (info.z || info.h || info.y) {
+                return {
+                    success: true,
+                    market: '上櫃',
+                    code: info.c,
+                    name: info.n,
+                    price: info.z !== '-' ? info.z : info.y,
+                    open: info.o,
+                    high: info.h,
+                    low: info.l,
+                    yesterday: info.y
+                };
+            }
+        }
+
+        // 備援：若即時 API 無回應，查詢櫃買中心盤後 JSON (使用 CORS 代理)
+        const tpexUrl = `https://corsproxy.io/?${encodeURIComponent('https://www.tpex.org.tw/web/stock/aftertrading/daily_close_quotes/stk_quote_result.php?l=zh-tw')}`;
+        const tpexRes = await fetch(tpexUrl);
+        const tpexData = await tpexRes.json();
+
+        if (tpexData && tpexData.aaData) {
+            const item = tpexData.aaData.find(row => row[0].trim() === stockNo.trim());
+            if (item) {
+                return {
+                    success: true,
+                    market: '上櫃',
+                    code: item[0].trim(),
+                    name: item[1].trim(),
+                    price: item[2],
+                    change: item[3],
+                    open: item[4],
+                    high: item[5],
+                    low: item[6]
+                };
+            }
+        }
+        return null;
+    } catch (e) {
+        console.warn('TPEx 查詢失敗:', e);
+        return null;
+    }
+}
+
+// 3. 核心查詢入口 (按鈕點擊事件)
+async function executeSearch() {
+    const inputField = document.getElementById('stockInput'); // 請確認你的 Input 元素 ID
+    const stockNo = inputField ? inputField.value.trim() : '';
+
+    if (!stockNo) {
+        alert('請輸入股票代碼！');
+        return;
+    }
+
+    // A. 優先查詢上市 (TWSE)
+    let result = await fetchTWSEStock(stockNo);
+
+    // B. 若上市查無資料，自動切換查詢上櫃 (TPEx)
+    if (!result) {
+        console.log('上市查無資料，自動切換查詢上櫃 (TPEx)...');
+        result = await fetchTPExStock(stockNo);
+    }
+
+    // C. 顯示查詢結果
+    if (result && result.success) {
+        console.log('查詢成功:', result);
+        renderDataToUI(result); // 請將此替換為你原本渲染畫面的 DOM 函式
+    } else {
+        alert(`代碼 [${stockNo}] 在上市與上櫃市場皆查無資料，請確認輸入是否正確。`);
+    }
+}
+</script>
 
     // ⚡ 精準防手勢縮放（只針對多指與手勢事件，不干擾單指點擊）
     document.addEventListener('touchmove', function (e) { 
