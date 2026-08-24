@@ -244,9 +244,9 @@
 
         try {
             const timeStamp = Date.now();
-            // 精準格式: 上市 tse_${code}.tw | 上櫃 otc_${code}.tw
-            const twseTarget = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${code}.tw|otc_${code}.tw&_=${timeStamp}`;
-            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(twseTarget)}`;
+            // （直接呼叫你的 Cloudflare Worker）
+            const workerUrl = `https://https://green-sun-def7.benny920928.workers.dev?code=${code}`;
+            const res = await fetch(workerUrl);
             
             const res = await fetch(proxyUrl);
             const data = await res.json();
