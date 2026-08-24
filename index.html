@@ -191,7 +191,7 @@
         }
     }
 
-    // 櫃買中心 (TPEx) 官方 OpenAPI 備援
+    // 櫃買中心 (TPEx) 官方 OpenAPI 盤後備援
     async function fetchTPExOpenAPI(stockNo) {
         try {
             const url = `https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes`;
@@ -233,24 +233,26 @@
         const code = inputCode.trim();
 
         try {
-            // 直接呼叫你的 Cloudflare Worker
+            // ⚠️ 請記得替換成你的 Cloudflare Worker 實際網址
             const workerUrl = `https://https://green-sun-def7.benny920928.workers.dev/?code=${code}`;
             
             const res = await fetch(workerUrl);
             const data = await res.json();
             
             let stock = null;
-            if (data && data.msgArray && data.msgArray.length > 0) {
-                stock = data.msgArray.find(s => (s.z && s.z !== "-") || (s.a && s.a !== "-") || (s.b && s.b !== "-") || (s.y && s.y !== "-")) || data.msgArray[0];
+            if (data && data.msgArray && Array.isArray(data.msgArray)) {
+                // 準確過濾非空物件 (具有代號 c 的項目)
+                stock = data.msgArray.find(s => s.c && s.c.length > 0) || data.msgArray[0];
             }
 
             if (stock && (stock.n || stock.z || stock.y)) {
                 const name = code === 't00' ? '加權指數' : (stock.n || code);
                 const yClose = parseFloat(stock.y || 0);
                 
+                // 取價優先順序：成交價(z) > 買進價(a) > 賣出價(b) > 昨收價(y)
                 let priceStr = stock.z;
                 if (!priceStr || priceStr === "-") {
-                    priceStr = stock.a ? stock.a.split('_')[0] : (stock.b ? stock.b.split('_')[0] : "-");
+                    priceStr = stock.a ? stock.a.split('_')[0] : (stock.b ? stock.b.split('_')[0] : stock.y);
                 }
 
                 if (!priceStr || priceStr === "-") {
