@@ -234,7 +234,7 @@
 
         try {
             // ⚠️ 請記得替換成你的 Cloudflare Worker 實際網址
-            const workerUrl = `https://https://green-sun-def7.benny920928.workers.dev/?code=${code}`;
+            const workerUrl = `https://green-sun-def7.benny920928.workers.dev/?code=${code}`;
             
             const res = await fetch(workerUrl);
             const data = await res.json();
