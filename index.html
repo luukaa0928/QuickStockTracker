@@ -3,21 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="theme-color" content="#000000">
-    <!-- Viewport 限制使用者手勢縮放 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>快速查股王</title>
     
-    <!-- PWA 關鍵設定 -->
     <link rel="manifest" href="./manifest.json">
-
-    <!-- Icon 設定 -->
     <link rel="icon" href="./icon-192.png" type="image/png">
     <link rel="apple-touch-icon" href="./icon-192.png">
 
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         
-        /* 禁止頁面滾動與滑動手勢 */
         html, body {
             width: 100%;
             height: 100%;
@@ -52,7 +47,6 @@
         .logo-container { text-align: center; margin-bottom: 12px; }
         .app-logo { width: 64px; height: 64px; border-radius: 14px; object-fit: cover; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
         
-        /* 固定查詢框高度與內部行高，防止大小變動 */
         .screen { 
             background: #000; 
             border-radius: 12px; 
@@ -71,7 +65,6 @@
         
         .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
         
-        /* ⚡ 核心優化：消除點擊延遲與提昇觸控效能 */
         button { 
             border: none; 
             background: #2c2c34; 
@@ -81,8 +74,8 @@
             border-radius: 10px; 
             height: 52px; 
             cursor: pointer; 
-            touch-action: manipulation; /* 告訴瀏覽器此按鈕無雙擊縮放，移除 300ms 延遲 */
-            will-change: transform;       /* 預先啟用硬體加速 */
+            touch-action: manipulation;
+            will-change: transform;
         }
         button:active { background: #444; }
         .btn-query { background: #007acc; }
@@ -134,7 +127,6 @@
 </div>
 
 <script>
-    // ⚡ 精準防手勢縮放
     document.addEventListener('touchmove', function (e) { 
         if (e.touches.length > 1) e.preventDefault(); 
     }, { passive: false });
@@ -199,7 +191,7 @@
         }
     }
 
-    // 櫃買中心 (TPEx) 官方 OpenAPI 備援 (直連無須 Proxy)
+    // 櫃買中心 (TPEx) 官方 OpenAPI 備援
     async function fetchTPExOpenAPI(stockNo) {
         try {
             const url = `https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes`;
@@ -209,11 +201,9 @@
                 const item = data.find(row => row.SecuritiesCompanyCode && row.SecuritiesCompanyCode.trim() === stockNo.trim());
                 if (item) {
                     const price = parseFloat(item.Close);
-                    const change = parseFloat(item.Change || 0);
                     return {
                         name: item.CompanyName ? item.CompanyName.trim() : stockNo,
-                        price: isNaN(price) ? null : price,
-                        change: isNaN(change) ? 0 : change
+                        price: isNaN(price) ? null : price
                     };
                 }
             }
@@ -243,18 +233,15 @@
         const code = inputCode.trim();
 
         try {
-            const timeStamp = Date.now();
-            // （直接呼叫你的 Cloudflare Worker）
-            const workerUrl = `https://https://green-sun-def7.benny920928.workers.dev?code=${code}`;
-            const res = await fetch(workerUrl);
+            // 直接呼叫你的 Cloudflare Worker
+            const workerUrl = `https://https://green-sun-def7.benny920928.workers.dev/?code=${code}`;
             
-            const res = await fetch(proxyUrl);
+            const res = await fetch(workerUrl);
             const data = await res.json();
             
             let stock = null;
             if (data && data.msgArray && data.msgArray.length > 0) {
-                // 優先找尋有價格資訊的物件
-                stock = data.msgArray.find(s => (s.z && s.z !== "-") || (s.a && s.a !== "-") || (s.y && s.y !== "-")) || data.msgArray[0];
+                stock = data.msgArray.find(s => (s.z && s.z !== "-") || (s.a && s.a !== "-") || (s.b && s.b !== "-") || (s.y && s.y !== "-")) || data.msgArray[0];
             }
 
             if (stock && (stock.n || stock.z || stock.y)) {
@@ -266,7 +253,6 @@
                     priceStr = stock.a ? stock.a.split('_')[0] : (stock.b ? stock.b.split('_')[0] : "-");
                 }
 
-                // 即時 API 盤後未提供或無資料時，自動觸發櫃買官方 OpenAPI 備援
                 if (!priceStr || priceStr === "-") {
                     const fallback = await fetchTPExOpenAPI(code);
                     if (fallback && fallback.price !== null) {
@@ -300,17 +286,13 @@
                 priceDisp.className = `stock-price ${change > 0 ? 'up' : (change < 0 ? 'down' : '')}`;
                 
                 const now = new Date();
-                const day = now.getDay();
-                const timeNum = now.getHours() * 100 + now.getMinutes();
-                const isTradingHours = (day >= 1 && day <= 5) && (timeNum >= 900 && timeNum <= 1330);
-                const updateTime = stock.t || now.toLocaleTimeString();
+                const updateTime = stock.t || now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                 
-                timeDisp.innerText = isTradingHours ? `盤中即時報價 (${updateTime})` : `盤後報價 (${updateTime})`;
+                timeDisp.innerText = `即時報價 (${updateTime})`;
                 timeDisp.className = "stock-time";
                 return;
             }
 
-            // 若 MIS API 完全查無資料，執行最後開放資料備援
             const fallback = await fetchTPExOpenAPI(code);
             if (fallback && fallback.price !== null) {
                 nameDisp.innerText = `${fallback.name} (${code})`;
@@ -330,28 +312,16 @@
             timeDisp.className = "stock-time text-placeholder";
 
         } catch (e) {
-            console.error(e);
-            const fallback = await fetchTPExOpenAPI(code);
-            if (fallback && fallback.price !== null) {
-                nameDisp.innerText = `${fallback.name} (${code})`;
-                nameDisp.className = "stock-name";
-                priceDisp.innerText = `$${fallback.price.toFixed(2)}`;
-                priceDisp.className = "stock-price";
-                timeDisp.innerText = "櫃買中心每日收盤價";
-                timeDisp.className = "stock-time";
-                return;
-            }
-
+            console.error('Worker 查詢失敗:', e);
             nameDisp.innerText = "-";
             nameDisp.className = "stock-name text-placeholder";
-            priceDisp.innerText = "查詢失敗";
+            priceDisp.innerText = "連線失敗";
             priceDisp.className = "stock-price";
             timeDisp.innerText = "-";
             timeDisp.className = "stock-time text-placeholder";
         }
     }
 
-    // 註冊 Service Worker
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('./sw.js')
