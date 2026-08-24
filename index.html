@@ -124,7 +124,7 @@
         <button onclick="press('1')">1</button>
         <button onclick="press('2')">2</button>
         <button onclick="press('3')">3</button>
-        <button onclick="quickSelect('00878')">00878</button>
+        <button onclick="quickSelect('5347')">5347</button>
         
         <button onclick="press('0')">0</button>
         <button onclick="press('00')">00</button>
@@ -199,7 +199,43 @@
         }
     }
 
-    // 櫃買中心 (TPEx) 官方 OpenAPI 備援 (直連無須 Proxy)
+    // ⚡ 核心優化：雙 Proxy 備援抓取 TWSE 即時 API
+    async function fetchTWSERealtime(code) {
+        const timeStamp = Date.now();
+        const targetUrl = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${code}.tw|otc_${code}.tw&_=${timeStamp}`;
+        
+        const proxyList = [
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+            `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`
+        ];
+
+        for (let url of proxyList) {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3500); // 3.5秒逾時自動切換 Proxy
+                
+                const res = await fetch(url, { signal: controller.signal });
+                clearTimeout(timeoutId);
+
+                let data;
+                if (typeof res.json === 'function') {
+                    data = await res.json();
+                } else {
+                    const text = await res.text();
+                    data = JSON.parse(text);
+                }
+
+                if (data && data.msgArray && data.msgArray.length > 0) {
+                    return data.msgArray;
+                }
+            } catch (e) {
+                console.warn(`Proxy 連線失敗或逾時: ${url}`, e);
+            }
+        }
+        return null;
+    }
+
+    // 櫃買中心 (TPEx) 官方 OpenAPI 備援
     async function fetchTPExOpenAPI(stockNo) {
         try {
             const url = `https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes`;
@@ -209,7 +245,7 @@
                 const item = data.find(row => row.SecuritiesCompanyCode && row.SecuritiesCompanyCode.trim() === stockNo.trim());
                 if (item) {
                     const price = parseFloat(item.Close);
-                    const change = parseFloat(item.Change || 0);
+                    const change = parseFloat(item.Dir || '') === '+' ? parseFloat(item.Change || 0) : -parseFloat(item.Change || 0);
                     return {
                         name: item.CompanyName ? item.CompanyName.trim() : stockNo,
                         price: isNaN(price) ? null : price,
@@ -243,18 +279,12 @@
         const code = inputCode.trim();
 
         try {
-            const timeStamp = Date.now();
-            // 精準格式: 上市 tse_${code}.tw | 上櫃 otc_${code}.tw
-            const twseTarget = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${code}.tw|otc_${code}.tw&_=${timeStamp}`;
-            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(twseTarget)}`;
-            
-            const res = await fetch(proxyUrl);
-            const data = await res.json();
+            // 1. 優先嘗試擷取 TWSE / TPEx 即時報價
+            const msgArray = await fetchTWSERealtime(code);
             
             let stock = null;
-            if (data && data.msgArray && data.msgArray.length > 0) {
-                // 優先找尋有價格資訊的物件
-                stock = data.msgArray.find(s => (s.z && s.z !== "-") || (s.a && s.a !== "-") || (s.y && s.y !== "-")) || data.msgArray[0];
+            if (msgArray && msgArray.length > 0) {
+                stock = msgArray.find(s => (s.z && s.z !== "-") || (s.a && s.a !== "-") || (s.b && s.b !== "-") || (s.y && s.y !== "-")) || msgArray[0];
             }
 
             if (stock && (stock.n || stock.z || stock.y)) {
@@ -266,7 +296,7 @@
                     priceStr = stock.a ? stock.a.split('_')[0] : (stock.b ? stock.b.split('_')[0] : "-");
                 }
 
-                // 即時 API 盤後未提供或無資料時，自動觸發櫃買官方 OpenAPI 備援
+                // 盤後無即時成交價時，進入 OpenAPI 備援
                 if (!priceStr || priceStr === "-") {
                     const fallback = await fetchTPExOpenAPI(code);
                     if (fallback && fallback.price !== null) {
@@ -310,7 +340,7 @@
                 return;
             }
 
-            // 若 MIS API 完全查無資料，執行最後開放資料備援
+            // 2. 即時 API 完全無法連通時，最後退回 OpenAPI 盤後備援
             const fallback = await fetchTPExOpenAPI(code);
             if (fallback && fallback.price !== null) {
                 nameDisp.innerText = `${fallback.name} (${code})`;
@@ -330,21 +360,10 @@
             timeDisp.className = "stock-time text-placeholder";
 
         } catch (e) {
-            console.error(e);
-            const fallback = await fetchTPExOpenAPI(code);
-            if (fallback && fallback.price !== null) {
-                nameDisp.innerText = `${fallback.name} (${code})`;
-                nameDisp.className = "stock-name";
-                priceDisp.innerText = `$${fallback.price.toFixed(2)}`;
-                priceDisp.className = "stock-price";
-                timeDisp.innerText = "櫃買中心每日收盤價";
-                timeDisp.className = "stock-time";
-                return;
-            }
-
+            console.error('查詢異常:', e);
             nameDisp.innerText = "-";
             nameDisp.className = "stock-name text-placeholder";
-            priceDisp.innerText = "查詢失敗";
+            priceDisp.innerText = "連線失敗";
             priceDisp.className = "stock-price";
             timeDisp.innerText = "-";
             timeDisp.className = "stock-time text-placeholder";
